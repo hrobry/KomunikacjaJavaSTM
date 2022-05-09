@@ -68,9 +68,9 @@ manual= communicationFrame [8];
 		communicationFrame [11]=PWM;
    }
 
-double calculatePID(double setpoint, double pv) {
+uint8_t calculatePID( int odchylka) {
 
-				double dt = 0.5;
+				double dt = 0.2;
 
 							double Kp = 0.1;
 							 double Ki = 0.1;
