@@ -39,7 +39,36 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-double calculate(double setpoint, double pv) {
+  // uint8_t communicationFrame  [13] = BIT STARTU= 0xFF , P , I , D , START , STOP , buttonLeft , buttonRight  , manual ,encoderUp,encoderDown,PWM, BIT STOPU = 0x00
+
+ uint8_t P ;
+ uint8_t  I ;
+ uint8_t D ;
+ uint8_t START ;
+ uint8_t STOP ;
+ uint8_t  leftButton;
+ uint8_t rightButton ;
+ uint8_t manual ;
+ uint8_t  encoderUp;
+ uint8_t encoderDown;
+ uint8_t PWM;
+
+   uint8_t  communicationFrame [13];
+   void frameToName(){
+P = communicationFrame [1];
+I=communicationFrame [2];
+D=communicationFrame [3];
+START = communicationFrame [4];
+STOP= communicationFrame [5];
+leftButton= communicationFrame [6];
+rightButton= communicationFrame [7];
+manual= communicationFrame [8];
+        communicationFrame [9]=encoderUp;
+		communicationFrame [10]=encoderDown;
+		communicationFrame [11]=PWM;
+   }
+
+double calculatePID(double setpoint, double pv) {
 
 				double dt = 0.5;
 
@@ -70,10 +99,7 @@ double calculate(double setpoint, double pv) {
 			    return out;
 			}
 
-void comm0(){
 
-
-}
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -90,7 +116,21 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
+	static uint8_t Data[13]; // Tablica przechowujaca wysylana wiadomosc.
+
+	////
+	//HAL_UART_Transmit_DMA(&huart1, Data, 40); // Rozpoczecie nadawania danych z wykorzystaniem przerwan
+	HAL_UART_Receive_DMA(&huart2, communicationFrame, 13); // Ponowne włączenie nasłuchiwania
+	//HAL_GPIO_TogglePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin);
+
+
+	frameToName();
+	sprintf(Data, "%s", communicationFrame);
+	HAL_UART_Transmit_DMA(&huart2, Data, 13);
+
+}
 /* USER CODE END 0 */
 
 /**
@@ -141,117 +181,76 @@ int main(void)
   bool right = false;
  int way;
   bool RecievedMSG = false;
+
+
+
+  HAL_UART_Receive_DMA(&huart2, communicationFrame, 13);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  	uint8_t value=1;
-  	HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
-  	HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
-    HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+
+
+
+  	HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL); // enkoder dol
+  	HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL); // enkoder gora
+    HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1); // wysterowanie silnika
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
 
   while (1)
   {
-
-
-		if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_RXNE) == SET)
+	encoderCounterUp = __HAL_TIM_GET_COUNTER(&htim4);
+		encoderCounterDown = __HAL_TIM_GET_COUNTER(&htim3);
+		if (START == 1&& STOP == 0 && manual == 0)
 		{
 
-			HAL_UART_Receive(&huart2, &value, 1, 100);
+
+			PWM =calculatePID(0,encoderCounterUp);
+			 if(PWM>0)
+						            {
+
+						             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6,  GPIO_PIN_SET);
+						             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7,  GPIO_PIN_RESET);
+						             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8,  GPIO_PIN_SET);
+						             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9,  GPIO_PIN_RESET);
+						             HAL_Delay(10);
+						             __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, PWM);
+						            }else{
+
+
+						            	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6,  GPIO_PIN_RESET);
+						            	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7,  GPIO_PIN_SET);
+						            	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8,  GPIO_PIN_RESET);
+						            	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9,  GPIO_PIN_SET);
+						            	HAL_Delay(10);
+						            	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, PWM);
+						            }
+		}
+		if (START == 0 && STOP == 1 && manual == 0)
+		{
 
 		}
-		encoderCounterUp = __HAL_TIM_GET_COUNTER(&htim4);
-		encoderCounterDown = __HAL_TIM_GET_COUNTER(&htim3);
-
-
-		switch (value){
-
-		case 0:
-
-			          PWM = calculate( punktZero,  (double)encoderCounterDown);
-			            if(PWM>0)
-			            {
-
-			             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6,  GPIO_PIN_SET);
-			             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7,  GPIO_PIN_RESET);
-			             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8,  GPIO_PIN_SET);
-			             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9,  GPIO_PIN_RESET);
-			             HAL_Delay(10);
-			             __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, PWM);
-			            }else{
-
-
-			            	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6,  GPIO_PIN_RESET);
-			            	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7,  GPIO_PIN_SET);
-			            	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8,  GPIO_PIN_RESET);
-			            	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9,  GPIO_PIN_SET);
-			            	HAL_Delay(10);
-			            	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, PWM);
-			            }
-
-			            //start
-			            sprintf((char*)messageSend, " START %d",   value);
-			            	HAL_UART_Transmit(&huart2, (uint8_t*)messageSend, strlen(messageSend), 1000);
-			            	sprintf((char*)messageSend, " EUP %d",   encoderCounterUp);
-			            	HAL_UART_Transmit(&huart2, (uint8_t*)messageSend, strlen(messageSend), 1000);
-			            	sprintf((char*)messageSend, " EDOWN %d",   encoderCounterDown);
-			            	HAL_UART_Transmit(&huart2, (uint8_t*)messageSend, strlen(messageSend), 1000);
-			            	sprintf((char*)messageSend, " PWM %d",  PWM);
-			            	HAL_UART_Transmit(&huart2, (uint8_t*)messageSend, strlen(messageSend), 1000);
-			            	sprintf((char*)messageSend, " way %d",  way);
-			            	HAL_UART_Transmit(&huart2, (uint8_t*)messageSend, strlen(messageSend), 1000);
-
-
-		break;
-
-		case 1:
-
-			sprintf((char*)messageSend, " STOP %d",   value);
-			HAL_UART_Transmit(&huart2, (uint8_t*)messageSend, strlen(messageSend), 1000);
-
-				break;
-		case 2:
-
-			sprintf((char*)messageSend, " LEFT BUTTON %d",   value);
-			HAL_UART_Transmit(&huart2, (uint8_t*)messageSend, strlen(messageSend), 1000);
+		if (manual == 1 && leftButton==1 && rightButton == 0)
+				{
 			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6,  GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7,  GPIO_PIN_SET);
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8,  GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9,  GPIO_PIN_SET);
-			HAL_Delay(10);
-			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 50);
-
-				break;
-		case 3:
-
-			sprintf((char*)messageSend, " RIGHT BUTTON %d",   value);
-			HAL_UART_Transmit(&huart2, (uint8_t*)messageSend, strlen(messageSend), 1000);
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7,  GPIO_PIN_SET);
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8,  GPIO_PIN_RESET);
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9,  GPIO_PIN_SET);
+					HAL_Delay(10);
+					__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 50);
+				}
+		if (manual == 1 && leftButton==1 && rightButton == 0)
+						{
 			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6,  GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7,  GPIO_PIN_SET);
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8,  GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9,  GPIO_PIN_SET);
-			HAL_Delay(10);
-			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 50);
-				break;
-		case 4:
-
-			sprintf((char*)messageSend, "MANUAL %d",   value);
-		   HAL_UART_Transmit(&huart2, (uint8_t*)messageSend, strlen(messageSend), 1000);
-
-				break;
-		case 5:
-
-          sprintf((char*)messageSend, " P %d",   value);
-          HAL_UART_Transmit(&huart2, (uint8_t*)messageSend, strlen(messageSend), 1000);
-
-				break;
-
-		}
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7,  GPIO_PIN_SET);
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8,  GPIO_PIN_RESET);
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9,  GPIO_PIN_SET);
+					HAL_Delay(10);
+					__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 50);
+						}
 
 
-	 	HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
